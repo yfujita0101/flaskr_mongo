@@ -2,13 +2,11 @@ from flask import (
     Blueprint, flash, g, redirect, render_template, request, url_for
 )
 from werkzeug.exceptions import abort
-
 from flaskr_mongo.auth import login_required
 from flaskr_mongo.db import get_db
 
-import json
-import pprint
 from bson.objectid import ObjectId
+from datetime import datetime
 
 bp = Blueprint('blog', __name__)
 
@@ -16,33 +14,6 @@ bp = Blueprint('blog', __name__)
 @bp.route('/')
 def index():
     db = get_db()
-    #posts = db.blog.find()
-    #posts = json.loads({"_id": "00001", "title": "test", "body": "test" , "created": "2018/08/10 09:00:00", "author_id": "001", "username": "fujita" })
-
-    '''
-    NG　posts配下が出ない。。
-    posts = db.post.aggregate([
-    {"$lookup":
-        {
-            "from":"user",
-            "localField":"author_id",
-            "foreignField":"_id",
-            "as":"userInfos"
-        }
-    },
-    {"$unwind":"$userInfos"},
-    {"$project":
-        {
-            "id":{"$toString" :"$_id"},
-            "title":"$title",
-            "body": "$body",
-            #"created": "$created",
-            "author_id": {"$toString": "$author_id"},
-            "username":"$userInfos.username",
-        }
-    }
-    ])
-    '''
 
     posts = db.post.aggregate([
     {"$lookup":
@@ -54,24 +25,25 @@ def index():
         }
     },
     {"$unwind":"$userInfos"},
+    {"$sort": { "updated" : -1 }},
     {"$project":
         {
-            "id": "$id",
+            "id": "$_id",
             "title":"$title",
             "body": "$body",
-            #"created": "$created",
+            "updated": "$updated",
             "author_id": "$author_id",
             "username":"$userInfos.username",
         }
     }
     ])
 
+    results = []
+
     for post in posts:
-        pprint.pprint(post)
+        results.append({"id": str(post["id"]), "title": post["title"], "body": post["body"], "author_id": post["author_id"], "username": post["username"], "updated": post["updated"]})
 
-    print(type(posts))
-
-    return render_template('blog/index.html', posts=posts)
+    return render_template('blog/index.html', posts=results)
 
 
 @bp.route('/create', methods=('GET', 'POST'))
@@ -89,7 +61,7 @@ def create():
             flash(error)
         else:
             db = get_db()
-            post_id = db.post.insert({'title': title, 'body': body, 'author_id': g.user['_id']})
+            post_id = db.post.insert({'title': title, 'body': body, 'author_id': g.user['_id'], 'updated': datetime.now()})
             return redirect(url_for('blog.index'))
 
     return render_template('blog/create.html')
@@ -99,21 +71,25 @@ def get_post(id, check_author=True):
     # 修正対象のpost_idのauthor_idがログインユーザと同じであるかチェック
     # postを検索
     db = get_db()
-    post = db.post.fine_one({"_id": id})
+    got_post = db.post.find_one({"_id": ObjectId(id)})
+
+    post = {'id': str(got_post["_id"]),'title': got_post["title"], 'body': got_post["body"], 'author_id': got_post["author_id"]}
 
     if post is None:
         abort(404, "Post id {0} doesn't exist".format(id))
 
-    if post['author_id'] != g.user['id']:
+    if str(post['author_id']) != str(g.user['_id']):
         abort(403)
 
     return post
-@bp.route('/<int:id>/update', methods=('GET', 'POST'))
+
+
+@bp.route('/<id>/update', methods=('GET', 'POST'))
 @login_required
 def update(id):
     post = get_post(id)
 
-    if request.methods == 'POST':
+    if request.method == 'POST':
         title = request.form['title']
         body = request.form['body']
         error = None
@@ -125,16 +101,16 @@ def update(id):
             flash(error)
         else:
             db = get_db()
-            result = db.post.update_one({'_id': id}, {'$set': {'title': title, 'body': body}})
+            result = db.post.update_one({"_id": ObjectId(id)}, {'$set': {'title': title, 'body': body, 'updated': datetime.now()}})
             return redirect(url_for('blog.index'))
 
     return render_template('blog/update.html', post=post)
 
 
-@bp.route('/<int:id>/delete', methods=('POST',))
+@bp.route('/<id>/delete', methods=('POST',))
 @login_required
 def delete(id):
     get_post(id)
     db = get_db()
-    result = db.post.delete_one({'_id': id})
+    result = db.post.delete_one({'_id': ObjectId(id)})
     return redirect(url_for('blog.index'))

@@ -59,7 +59,7 @@ nav ul li a, nav ul li span, header .action {
 }
 
 .content > header {
-  border-bottom: 1px solid lightgray;
+  border-top: 1px solid lightgray;
   display: flex;
   align-items: flex-end;
 }
@@ -80,6 +80,7 @@ nav ul li a, nav ul li span, header .action {
   display: flex;
   align-items: flex-end;
   font-size: 0.85em;
+  background: lightgray;
 }
 
 .post > header > div:first-of-type {
@@ -98,6 +99,10 @@ nav ul li a, nav ul li span, header .action {
 
 .post .body {
   white-space: pre-line;
+}
+
+.post {
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.22);
 }
 
 .content:last-child {
@@ -132,3 +137,4 @@ input[type=submit] {
   align-self: start;
   min-width: 10em;
 }
+ 
